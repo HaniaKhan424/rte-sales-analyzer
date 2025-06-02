@@ -34,7 +34,7 @@ def load_sales_data():
         # Open the spreadsheet
         spreadsheet_url = "https://docs.google.com/spreadsheets/d/1CArpdv0DSd1Ng-bWocnf3c7bV4_44OjsK9ocHxvMSwE/edit"
         spreadsheet = client.open_by_url(spreadsheet_url)
-        worksheet = spreadsheet.get_worksheet("sales orderline")  
+        worksheet = spreadsheet.worksheet("sales orderline")
         
         # Get all data
         data = worksheet.get_all_records()
@@ -58,15 +58,15 @@ def preprocess_data(df):
         'LAST_UPDATED_AT'
     ]
     
-for col in numeric_columns:
-    if col in df.columns:
-        df[col] = pd.to_numeric(df[col].astype(str), errors='coerce')
+    for col in date_columns:
+        if col in df.columns:
+            df[col] = pd.to_datetime(df[col].astype(str), errors='coerce')
     
-   # Convert numeric columns
-numeric_columns = ['LINE_AMOUNT', 'LINE_AMOUNT_AFTER_DISCOUNT', 'SALES_QUANTITY', 'DISCOUNT_PERCENTAGE']
-for col in numeric_columns:
-    if col in df.columns:
-        df[col] = pd.to_numeric(df[col].astype(str), errors='coerce')
+    # Convert numeric columns
+    numeric_columns = ['LINE_AMOUNT', 'LINE_AMOUNT_AFTER_DISCOUNT', 'SALES_QUANTITY', 'DISCOUNT_PERCENTAGE']
+    for col in numeric_columns:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col].astype(str), errors='coerce')
     
     # Fill NaN values appropriately
     df['IS_SISTER_COMPANY'] = df['IS_SISTER_COMPANY'].fillna('NO')
