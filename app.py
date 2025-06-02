@@ -59,14 +59,14 @@ def preprocess_data(df):
     ]
     
     for col in date_columns:
-        if col in df.columns:
-            df[col] = pd.to_datetime(df[col], errors='coerce')
+    if col in df.columns:
+        df[col] = pd.to_datetime(df[col].astype(str), errors='coerce')
     
-    # Convert numeric columns
-    numeric_columns = ['LINE_AMOUNT', 'LINE_AMOUNT_AFTER_DISCOUNT', 'SALES_QUANTITY', 'DISCOUNT_PERCENTAGE']
-    for col in numeric_columns:
-        if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors='coerce')
+   # Convert numeric columns
+numeric_columns = ['LINE_AMOUNT', 'LINE_AMOUNT_AFTER_DISCOUNT', 'SALES_QUANTITY', 'DISCOUNT_PERCENTAGE']
+for col in numeric_columns:
+    if col in df.columns:
+        df[col] = pd.to_numeric(df[col].astype(str), errors='coerce')
     
     # Fill NaN values appropriately
     df['IS_SISTER_COMPANY'] = df['IS_SISTER_COMPANY'].fillna('NO')
