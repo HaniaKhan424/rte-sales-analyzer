@@ -38,11 +38,11 @@ def load_sales_data():
         
         # Get all data starting from row 2 (headers are in row 1)
         data = worksheet.get_all_values()
-
+        
         # Use the first row as headers and the rest as data
         headers = data[0]  # Row 1 contains headers
         rows = data[1:]    # Row 2 onwards contains data
-
+        
         # Create DataFrame
         df = pd.DataFrame(rows, columns=headers)
         
@@ -75,8 +75,10 @@ def preprocess_data(df):
             df[col] = pd.to_numeric(df[col].astype(str), errors='coerce')
     
     # Fill NaN values appropriately
-    df['IS_SISTER_COMPANY'] = df['IS_SISTER_COMPANY'].fillna('NO')
-    df['REGION'] = df['REGION'].fillna('Unknown')
+    if 'IS_SISTER_COMPANY' in df.columns:
+        df['IS_SISTER_COMPANY'] = df['IS_SISTER_COMPANY'].fillna('NO')
+    if 'REGION' in df.columns:
+        df['REGION'] = df['REGION'].fillna('Unknown')
     
     return df
 
@@ -85,15 +87,41 @@ def get_data_summary(df):
     summary = {
         'total_rows': len(df),
         'date_range': {
-            'start': df['SALES_LINE_CREATION_DATE'].min().strftime('%Y-%m-%d') if df['SALES_LINE_CREATION_DATE'].min() else 'Unknown',
-            'end': df['SALES_LINE_CREATION_DATE'].max().strftime('%Y-%m-%d') if df['SALES_LINE_CREATION_DATE'].max() else 'Unknown'
+            'start': 'Unknown',
+            'end': 'Unknown'
         },
-        'unique_customers': df['CUSTOMER_NAME'].nunique(),
-        'unique_regions': df['REGION'].unique().tolist(),
-        'sales_order_statuses': df['SALES_ORDER_STATUS'].unique().tolist(),
-        'total_sales_amount': df['LINE_AMOUNT_AFTER_DISCOUNT'].sum(),
-        'customer_groups': df['CUSTOMER_GROUP'].unique().tolist()[:10]  # Limit to first 10
+        'unique_customers': 0,
+        'unique_regions': [],
+        'sales_order_statuses': [],
+        'total_sales_amount': 0,
+        'customer_groups': []
     }
+    
+    # Safely get date range
+    if 'SALES_LINE_CREATION_DATE' in df.columns:
+        date_min = df['SALES_LINE_CREATION_DATE'].min()
+        date_max = df['SALES_LINE_CREATION_DATE'].max()
+        if pd.notna(date_min):
+            summary['date_range']['start'] = date_min.strftime('%Y-%m-%d')
+        if pd.notna(date_max):
+            summary['date_range']['end'] = date_max.strftime('%Y-%m-%d')
+    
+    # Safely get other metrics
+    if 'CUSTOMER_NAME' in df.columns:
+        summary['unique_customers'] = df['CUSTOMER_NAME'].nunique()
+    
+    if 'REGION' in df.columns:
+        summary['unique_regions'] = df['REGION'].unique().tolist()
+    
+    if 'SALES_ORDER_STATUS' in df.columns:
+        summary['sales_order_statuses'] = df['SALES_ORDER_STATUS'].unique().tolist()
+    
+    if 'LINE_AMOUNT_AFTER_DISCOUNT' in df.columns:
+        summary['total_sales_amount'] = df['LINE_AMOUNT_AFTER_DISCOUNT'].sum()
+    
+    if 'CUSTOMER_GROUP' in df.columns:
+        summary['customer_groups'] = df['CUSTOMER_GROUP'].unique().tolist()[:10]
+    
     return summary
 
 def analyze_data_with_claude(df, user_question):
@@ -200,13 +228,21 @@ def main():
         if df is not None:
             st.success("✅ Data loaded successfully")
             st.metric("Total Records", len(df))
-            st.metric("Total Sales Amount", f"{df['LINE_AMOUNT_AFTER_DISCOUNT'].sum():,.0f} SAR")
-            st.metric("Unique Customers", df['CUSTOMER_NAME'].nunique())
+            
+            # Safe metrics calculation
+            if 'LINE_AMOUNT_AFTER_DISCOUNT' in df.columns:
+                total_sales = df['LINE_AMOUNT_AFTER_DISCOUNT'].sum()
+                st.metric("Total Sales Amount", f"{total_sales:,.0f} SAR")
+            
+            if 'CUSTOMER_NAME' in df.columns:
+                unique_customers = df['CUSTOMER_NAME'].nunique()
+                st.metric("Unique Customers", unique_customers)
             
             # Show data freshness
-            last_update = df['LAST_UPDATED_AT'].max()
-            if pd.notna(last_update):
-                st.info(f"Last updated: {last_update.strftime('%Y-%m-%d %H:%M')}")
+            if 'LAST_UPDATED_AT' in df.columns:
+                last_update = df['LAST_UPDATED_AT'].max()
+                if pd.notna(last_update):
+                    st.info(f"Last updated: {last_update.strftime('%Y-%m-%d %H:%M')}")
     
     # Main interface
     col1, col2 = st.columns([2, 1])
@@ -240,17 +276,22 @@ def main():
     with col2:
         st.subheader("📋 Quick Stats")
         if df is not None:
-            # Recent activity
-            recent_sales = df[df['SALES_LINE_CREATION_DATE'] >= datetime.now() - timedelta(days=7)]
-            st.metric("Sales This Week", len(recent_sales))
+            # Recent activity (safe calculation)
+            if 'SALES_LINE_CREATION_DATE' in df.columns:
+                recent_sales = df[df['SALES_LINE_CREATION_DATE'] >= datetime.now() - timedelta(days=7)]
+                st.metric("Sales This Week", len(recent_sales))
             
-            # Top region
-            top_region = df.groupby('REGION')['LINE_AMOUNT_AFTER_DISCOUNT'].sum().idxmax()
-            st.metric("Top Region", top_region)
+            # Top region (safe calculation)
+            if 'REGION' in df.columns and 'LINE_AMOUNT_AFTER_DISCOUNT' in df.columns:
+                top_region_data = df.groupby('REGION')['LINE_AMOUNT_AFTER_DISCOUNT'].sum()
+                if not top_region_data.empty:
+                    top_region = top_region_data.idxmax()
+                    st.metric("Top Region", top_region)
             
-            # Internal vs External
-            internal_pct = (df['IS_SISTER_COMPANY'] == 'YES').mean() * 100
-            st.metric("Internal Sales %", f"{internal_pct:.1f}%")
+            # Internal vs External (safe calculation)
+            if 'IS_SISTER_COMPANY' in df.columns:
+                internal_pct = (df['IS_SISTER_COMPANY'] == 'YES').mean() * 100
+                st.metric("Internal Sales %", f"{internal_pct:.1f}%")
     
     # Analyze button
     if st.button("🔍 Analyze", type="primary", use_container_width=True):
