@@ -89,9 +89,20 @@ def show_dataset_info(df):
     """Display dataset information for debugging"""
     st.subheader("🔍 Dataset Debug Information")
     
-    # Show column names
-    st.write("**Available Columns:**")
-    st.write(df.columns.tolist())
+    # Show total columns and any duplicates
+    st.write(f"**Total Columns:** {len(df.columns)}")
+    
+    # Check for any remaining issues
+    duplicate_cols = df.columns[df.columns.duplicated()].tolist()
+    if duplicate_cols:
+        st.warning(f"**Still duplicated columns:** {duplicate_cols}")
+    
+    # Show column names (first 20 to avoid clutter)
+    st.write("**Available Columns (first 20):**")
+    cols_to_show = df.columns.tolist()[:20]
+    st.write(cols_to_show)
+    if len(df.columns) > 20:
+        st.write(f"... and {len(df.columns) - 20} more columns")
     
     # Show date columns specifically
     date_columns = [col for col in df.columns if any(word in col.upper() for word in ['DATE', 'TIME', 'CREATED'])]
@@ -99,13 +110,28 @@ def show_dataset_info(df):
         st.write("**Date-related Columns:**")
         st.write(date_columns)
     
-    # Show first few rows
-    st.write("**First 5 rows:**")
-    st.dataframe(df.head())
+    # Show first few rows (only first 10 columns to avoid display issues)
+    st.write("**First 5 rows (first 10 columns):**")
+    try:
+        display_df = df.iloc[:5, :10]  # First 5 rows, first 10 columns
+        st.dataframe(display_df)
+    except Exception as e:
+        st.error(f"Error displaying data: {str(e)}")
+        # Try showing just column info
+        st.write("**Column names and types:**")
+        col_info = pd.DataFrame({
+            'Column': df.columns[:10],
+            'Type': [str(df[col].dtype) for col in df.columns[:10]]
+        })
+        st.dataframe(col_info)
     
-    # Show data types
-    st.write("**Data Types:**")
-    st.write(df.dtypes)
+    # Show data types for first 10 columns
+    st.write("**Data Types (first 10 columns):**")
+    types_df = pd.DataFrame({
+        'Column': df.columns[:10],
+        'Type': [str(df[col].dtype) for col in df.columns[:10]]
+    })
+    st.dataframe(types_df)
 
 # Set page config
 st.set_page_config(
@@ -143,8 +169,15 @@ def load_sales_data():
         headers = data[0]  # Row 1 contains headers
         rows = data[1:]    # Row 2 onwards contains data
         
-        # Create DataFrame
+        # Create DataFrame and fix duplicate column names
         df = pd.DataFrame(rows, columns=headers)
+        
+        # Fix duplicate column names by adding suffixes
+        df.columns = pd.Index(df.columns).to_series().groupby(level=0).cumcount().astype(str).replace('0','') + df.columns
+        df.columns = df.columns.str.replace(r'^(\d+)', r'_\1', regex=True)  # Add underscore before numbers
+        
+        # Clean up column names (remove extra spaces, etc.)
+        df.columns = df.columns.str.strip()
         
         # Preprocess the data
         df = preprocess_data(df)
