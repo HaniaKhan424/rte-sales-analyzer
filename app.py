@@ -34,7 +34,7 @@ def load_sales_data():
         # Open the spreadsheet
         spreadsheet_url = "https://docs.google.com/spreadsheets/d/1CArpdv0DSd1Ng-bWocnf3c7bV4_44OjsK9ocHxvMSwE/edit"
         spreadsheet = client.open_by_url(spreadsheet_url)
-        worksheet = spreadsheet.get_worksheet(1)  # Second worksheet (gid=1333090880)
+        worksheet = spreadsheet.get_worksheet("sales orderline")  
         
         # Get all data
         data = worksheet.get_all_records()
