@@ -166,8 +166,8 @@ def load_sales_data():
         data = worksheet.get_all_values()
         
         # Use the first row as headers and the rest as data
-        headers = data[0]  # Row 1 contains headers
-        rows = data[1:]    # Row 2 onwards contains data
+        headers = data[1]  # Row 2 contains headers
+        rows = data[2:]    # Row 3 onwards contains data
         
         # Create DataFrame and fix duplicate column names
         df = pd.DataFrame(rows, columns=headers)
