@@ -190,8 +190,25 @@ def analyze_data_with_claude(df, user_question):
         # Get data summary
         summary = get_data_summary(df)
         
-        # Get a sample of recent data (last 10 rows)
-        recent_data = df.tail(10).to_string(index=False)
+        # Get the most recent data by date (not just last 10 rows)
+        if 'SALES_LINE_CREATION_DATE' in df.columns:
+            # Sort by date and get the most recent 10 records
+            df_sorted = df.sort_values('SALES_LINE_CREATION_DATE', ascending=False)
+            recent_data = df_sorted.head(10).to_string(index=False)
+            
+            # Get actual date range for validation
+            latest_date = df['SALES_LINE_CREATION_DATE'].max()
+            earliest_date = df['SALES_LINE_CREATION_DATE'].min()
+            
+            date_range_info = f"""
+ACTUAL DATA DATE RANGE:
+- Earliest date in dataset: {earliest_date.strftime('%Y-%m-%d') if pd.notna(earliest_date) else 'Unknown'}
+- Latest date in dataset: {latest_date.strftime('%Y-%m-%d') if pd.notna(latest_date) else 'Unknown'}
+- Total date span: {(latest_date - earliest_date).days if pd.notna(latest_date) and pd.notna(earliest_date) else 'Unknown'} days
+"""
+        else:
+            recent_data = df.tail(10).to_string(index=False)
+            date_range_info = "Date range information not available"
         
         # Generate current date context
         dates = get_date_contexts()
@@ -206,6 +223,8 @@ CURRENT DATE CONTEXT (Auto-generated):
 - This week started: {dates['week_start_formatted']} ({dates['week_start']})
 - This month started: {dates['month_start_formatted']} ({dates['month_start']})
 
+{date_range_info}
+
 WORKWEEK DEFINITION:
 - Workdays: Sunday, Monday, Tuesday, Wednesday, Thursday
 - Weekends: Friday, Saturday
@@ -219,11 +238,15 @@ DATE INTERPRETATION RULES:
 - "This month" = from {dates['month_start']} to today
 - "Last month" = use {dates['last_month']} as reference
 
+IMPORTANT: If the requested date (like "yesterday") is not available in the dataset, 
+analyze the most recent date available and clearly state what date you're analyzing.
+
 RESPONSE GUIDELINES:
 - Provide direct, conversational business answers
 - Never show SQL queries or technical details
 - Use the exact dates provided above for filtering data
 - Focus on actionable business insights
+- If data for requested date isn't available, use the most recent date and explain
 """
         
         # Create system prompt with comprehensive context
@@ -270,8 +293,9 @@ ANALYSIS INSTRUCTIONS:
 4. If analyzing time periods, be specific about dates
 5. Consider business context in your analysis
 6. Format large numbers with commas for readability
+7. If the requested date range isn't available, use the most recent data available and explain
 
-When answering questions about "yesterday" or "last quarter", calculate based on the most recent data available."""
+When answering questions about "yesterday" or "last quarter", use the actual data available, not theoretical dates."""
 
         # Create user prompt with question and sample data
         user_prompt = f"""
@@ -279,10 +303,11 @@ When answering questions about "yesterday" or "last quarter", calculate based on
 
 QUESTION: {user_question}
 
-RECENT DATA SAMPLE (last 10 records):
+MOST RECENT DATA SAMPLE (sorted by date, most recent first):
 {recent_data}
 
 Please analyze the full dataset to answer this question. Show your reasoning and provide specific insights.
+If the exact date requested isn't available, use the most recent data and clearly explain what date range you're analyzing.
 """
 
         # Get response from Claude
