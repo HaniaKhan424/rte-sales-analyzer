@@ -139,8 +139,268 @@ def preprocess_data(df):
     
     return df
 
+def get_comprehensive_data_summary(df, user_question):
+    """Generate comprehensive summary of the entire dataset"""
+    summary = []
+    
+    # Get date contexts
+    dates = get_date_contexts()
+    today = datetime.strptime(dates['today'], '%Y-%m-%d').date()
+    yesterday = datetime.strptime(dates['yesterday'], '%Y-%m-%d').date()
+    week_start = datetime.strptime(dates['week_start'], '%Y-%m-%d').date()
+    month_start = datetime.strptime(dates['month_start'], '%Y-%m-%d').date()
+    
+    # Basic dataset info
+    summary.append(f"COMPLETE DATASET OVERVIEW ({len(df):,} total records):")
+    if 'SALES_LINE_CREATION_DATE' in df.columns:
+        date_min = df['SALES_LINE_CREATION_DATE'].min()
+        date_max = df['SALES_LINE_CREATION_DATE'].max()
+        if pd.notna(date_min) and pd.notna(date_max):
+            summary.append(f"- Date range: {date_min.strftime('%Y-%m-%d')} to {date_max.strftime('%Y-%m-%d')}")
+            summary.append(f"- Data spans: {(date_max - date_min).days} days")
+    
+    if 'CUSTOMER_NAME' in df.columns:
+        summary.append(f"- Unique customers: {df['CUSTOMER_NAME'].nunique():,}")
+    
+    if 'LINE_AMOUNT_AFTER_DISCOUNT' in df.columns:
+        total_sales = df['LINE_AMOUNT_AFTER_DISCOUNT'].sum()
+        summary.append(f"- Total sales amount: {total_sales:,.2f} SAR")
+    
+    # Time-based analysis using actual data
+    summary.append(f"\nTIME-BASED ANALYSIS (from complete dataset):")
+    
+    # Yesterday's data
+    if 'SALES_LINE_CREATION_DATE' in df.columns:
+        yesterday_data = df[df['SALES_LINE_CREATION_DATE'].dt.date == yesterday]
+        if len(yesterday_data) > 0:
+            yesterday_sales = yesterday_data['LINE_AMOUNT_AFTER_DISCOUNT'].sum()
+            summary.append(f"- Yesterday ({yesterday}): {len(yesterday_data)} transactions, {yesterday_sales:,.2f} SAR")
+            
+            # Yesterday's top performers
+            if len(yesterday_data) > 0 and 'CUSTOMER_GROUP' in yesterday_data.columns:
+                yesterday_reps = yesterday_data.groupby('CUSTOMER_GROUP')['LINE_AMOUNT_AFTER_DISCOUNT'].sum().sort_values(ascending=False)
+                summary.append("  Top performers yesterday:")
+                for rep, amount in yesterday_reps.head(5).items():
+                    summary.append(f"    • {rep}: {amount:,.2f} SAR")
+        else:
+            # Find most recent date if yesterday has no data
+            recent_dates = df['SALES_LINE_CREATION_DATE'].dropna().dt.date.unique()
+            if len(recent_dates) > 0:
+                most_recent = max(recent_dates)
+                recent_data = df[df['SALES_LINE_CREATION_DATE'].dt.date == most_recent]
+                recent_sales = recent_data['LINE_AMOUNT_AFTER_DISCOUNT'].sum()
+                summary.append(f"- No data for yesterday ({yesterday})")
+                summary.append(f"- Most recent data ({most_recent}): {len(recent_data)} transactions, {recent_sales:,.2f} SAR")
+    
+    # This week's data
+    this_week_data = df[df['SALES_LINE_CREATION_DATE'].dt.date >= week_start]
+    if len(this_week_data) > 0:
+        week_sales = this_week_data['LINE_AMOUNT_AFTER_DISCOUNT'].sum()
+        summary.append(f"- This week (from {week_start}): {len(this_week_data)} transactions, {week_sales:,.2f} SAR")
+    
+    # This month's data
+    this_month_data = df[df['SALES_LINE_CREATION_DATE'].dt.date >= month_start]
+    if len(this_month_data) > 0:
+        month_sales = this_month_data['LINE_AMOUNT_AFTER_DISCOUNT'].sum()
+        summary.append(f"- This month (from {month_start}): {len(this_month_data)} transactions, {month_sales:,.2f} SAR")
+    
+    # Sales by region (complete dataset)
+    if 'REGION' in df.columns and 'LINE_AMOUNT_AFTER_DISCOUNT' in df.columns:
+        summary.append(f"\nSALES BY REGION (complete dataset):")
+        region_sales = df.groupby('REGION')['LINE_AMOUNT_AFTER_DISCOUNT'].agg(['count', 'sum']).round(2)
+        region_sales = region_sales.sort_values('sum', ascending=False)
+        for region, data in region_sales.iterrows():
+            summary.append(f"- {region}: {data['count']:,} transactions, {data['sum']:,.2f} SAR")
+    
+    # Top customers (complete dataset)
+    if 'CUSTOMER_NAME' in df.columns and 'LINE_AMOUNT_AFTER_DISCOUNT' in df.columns:
+        summary.append(f"\nTOP 10 CUSTOMERS (complete dataset):")
+        top_customers = df.groupby('CUSTOMER_NAME')['LINE_AMOUNT_AFTER_DISCOUNT'].sum().sort_values(ascending=False).head(10)
+        for i, (customer, amount) in enumerate(top_customers.items(), 1):
+            summary.append(f"- {i}. {customer}: {amount:,.2f} SAR")
+    
+    # Sales representatives performance (complete dataset)
+    if 'CUSTOMER_GROUP' in df.columns and 'LINE_AMOUNT_AFTER_DISCOUNT' in df.columns:
+        summary.append(f"\nSALES REPRESENTATIVES PERFORMANCE (complete dataset):")
+        rep_sales = df.groupby('CUSTOMER_GROUP')['LINE_AMOUNT_AFTER_DISCOUNT'].agg(['count', 'sum']).round(2)
+        rep_sales = rep_sales.sort_values('sum', ascending=False).head(10)
+        for rep, data in rep_sales.iterrows():
+            summary.append(f"- {rep}: {data['count']:,} transactions, {data['sum']:,.2f} SAR")
+    
+    # Order status analysis
+    if 'SALES_ORDER_STATUS' in df.columns and 'LINE_AMOUNT_AFTER_DISCOUNT' in df.columns:
+        summary.append(f"\nORDER STATUS ANALYSIS (complete dataset):")
+        status_analysis = df.groupby('SALES_ORDER_STATUS')['LINE_AMOUNT_AFTER_DISCOUNT'].agg(['count', 'sum']).round(2)
+        for status, data in status_analysis.iterrows():
+            summary.append(f"- {status}: {data['count']:,} orders, {data['sum']:,.2f} SAR")
+    
+    # Internal vs External
+    if 'IS_SISTER_COMPANY' in df.columns and 'LINE_AMOUNT_AFTER_DISCOUNT' in df.columns:
+        summary.append(f"\nINTERNAL vs EXTERNAL SALES (complete dataset):")
+        internal_external = df.groupby('IS_SISTER_COMPANY')['LINE_AMOUNT_AFTER_DISCOUNT'].agg(['count', 'sum']).round(2)
+        for category, data in internal_external.iterrows():
+            category_name = "Internal" if category == "YES" else "External"
+            summary.append(f"- {category_name}: {data['count']:,} transactions, {data['sum']:,.2f} SAR")
+    
+    return "\n".join(summary)
+
+def get_targeted_data_sample(df, user_question):
+    """Get targeted sample based on the specific question"""
+    question_lower = user_question.lower()
+    
+    # Time-based questions
+    if any(word in question_lower for word in ['yesterday', 'today']):
+        dates = get_date_contexts()
+        target_date = datetime.strptime(dates['yesterday'], '%Y-%m-%d').date()
+        
+        if 'SALES_LINE_CREATION_DATE' in df.columns:
+            filtered_df = df[df['SALES_LINE_CREATION_DATE'].dt.date == target_date]
+            if len(filtered_df) > 0:
+                return f"YESTERDAY'S COMPLETE DATA ({target_date}) - {len(filtered_df)} records:\n" + filtered_df.to_string(index=False)
+            else:
+                # Get most recent date
+                recent_date = df['SALES_LINE_CREATION_DATE'].dt.date.max()
+                recent_df = df[df['SALES_LINE_CREATION_DATE'].dt.date == recent_date]
+                return f"No data for yesterday ({target_date}). Most recent data ({recent_date}) - {len(recent_df)} records:\n" + recent_df.to_string(index=False)
+    
+    # Customer-based questions
+    elif any(word in question_lower for word in ['customer', 'client']):
+        if 'CUSTOMER_NAME' in df.columns and 'LINE_AMOUNT_AFTER_DISCOUNT' in df.columns:
+            top_customers = df.groupby('CUSTOMER_NAME')['LINE_AMOUNT_AFTER_DISCOUNT'].sum().sort_values(ascending=False).head(5)
+            sample_data = df[df['CUSTOMER_NAME'].isin(top_customers.index)].head(20)
+            return f"SAMPLE FROM TOP CUSTOMERS:\n" + sample_data.to_string(index=False)
+    
+    # Sales rep questions
+    elif any(word in question_lower for word in ['sales', 'rep', 'representative', 'group']):
+        if 'SALES_LINE_CREATION_DATE' in df.columns:
+            recent_sales_data = df.sort_values('SALES_LINE_CREATION_DATE', ascending=False).head(30)
+            return f"RECENT SALES DATA:\n" + recent_sales_data.to_string(index=False)
+    
+    # Default: most recent data
+    if 'SALES_LINE_CREATION_DATE' in df.columns:
+        recent_data = df.sort_values('SALES_LINE_CREATION_DATE', ascending=False).head(20)
+        return f"MOST RECENT DATA:\n" + recent_data.to_string(index=False)
+    else:
+        return df.head(20).to_string(index=False)
+
+def analyze_data_with_claude(df, user_question):
+    """Analyze data using Claude API with full dataset access"""
+    try:
+        # Initialize Claude API
+        client = Anthropic(api_key=st.secrets["anthropic_api_key"])
+        
+        # Get comprehensive data summary from entire dataset
+        comprehensive_summary = get_comprehensive_data_summary(df, user_question)
+        
+        # Get targeted sample based on question
+        targeted_sample = get_targeted_data_sample(df, user_question)
+        
+        # Generate current date context
+        dates = get_date_contexts()
+        
+        # Get actual date range from dataset
+        date_range_info = ""
+        if 'SALES_LINE_CREATION_DATE' in df.columns:
+            latest_date = df['SALES_LINE_CREATION_DATE'].max()
+            earliest_date = df['SALES_LINE_CREATION_DATE'].min()
+            
+            date_range_info = f"""
+ACTUAL DATA DATE RANGE:
+- Earliest date in dataset: {earliest_date.strftime('%Y-%m-%d') if pd.notna(earliest_date) else 'Unknown'}
+- Latest date in dataset: {latest_date.strftime('%Y-%m-%d') if pd.notna(latest_date) else 'Unknown'}
+- Total date span: {(latest_date - earliest_date).days if pd.notna(latest_date) and pd.notna(earliest_date) else 'Unknown'} days
+"""
+        
+        date_context = f"""
+CURRENT DATE CONTEXT (Auto-generated):
+- Today: {dates['today_formatted']} ({dates['today']})
+- Yesterday: {dates['yesterday_formatted']} ({dates['yesterday']})
+- Last workday: {dates['last_workday_formatted']} ({dates['last_workday']})
+- This week started: {dates['week_start_formatted']} ({dates['week_start']})
+- This month started: {dates['month_start_formatted']} ({dates['month_start']})
+
+{date_range_info}
+
+DATE INTERPRETATION RULES:
+- "Yesterday" = {dates['yesterday']}
+- "Today" = {dates['today']}
+- "This week" = from {dates['week_start']} to today
+- "This month" = from {dates['month_start']} to today
+
+IMPORTANT: All analysis above is based on the COMPLETE dataset of {len(df):,} records.
+If requested dates aren't available, I've provided the most recent data available.
+"""
+        
+        # Create system prompt
+        system_prompt = f"""You are a data analyst for RTE/Raqtan with FULL ACCESS to the complete sales dataset.
+
+You have access to ALL {len(df):,} records in the dataset. The comprehensive summary below contains aggregated information from the ENTIRE dataset, not just a sample.
+
+COLUMN DESCRIPTIONS:
+- SALES_ID: Unique identifier for each sales line
+- CUSTOMER_NAME: Name of the customer
+- CUSTOMER_ACCOUNT: Customer account number
+- ITEM_ID: Product/service identifier
+- SALES_ORDER_STATUS: Status of the entire order (invoiced, Open, Delivered, cancelled)
+- SALES_LINE_STATUS: Status of the individual line item
+- LINE_AMOUNT: Net amount (unit price × quantity)
+- LINE_AMOUNT_AFTER_DISCOUNT: Final amount after discounts (USE THIS for financial calculations)
+- SALES_QUANTITY: Quantity sold
+- DISCOUNT_PERCENTAGE: Discount applied
+- SALES_LINE_CREATION_DATE: When the line item was created
+- SALES_ORDER_CREATION_DATE: When the entire order was created
+- CUSTOMER_GROUP: Sales person name (starts with region prefix: J-, R-, K-)
+- REGION: Geographic region (Jeddah, Khobar, Riyadh, Dubai, etc.)
+- IS_SISTER_COMPANY: YES = internal job, NO = external sale
+- Currency: Saudi Riyals (SAR)
+
+BUSINESS RULES:
+- Use LINE_AMOUNT_AFTER_DISCOUNT for all financial calculations
+- IS_SISTER_COMPANY = YES means internal transactions
+- Customer groups starting with J- are from Jeddah, R- from Riyadh, K- from Khobar
+- Spherey is an after-sales service company under Raqtan
+
+ANALYSIS INSTRUCTIONS:
+1. Base your analysis on the COMPLETE dataset summary provided
+2. Show specific calculations and numbers from the full dataset
+3. Use actual date filtering based on current date context
+4. Provide actionable business insights
+5. If requested date isn't available, use most recent data and explain clearly
+6. Format large numbers with commas for readability
+7. Be conversational and business-focused in your response"""
+
+        # Create user prompt
+        user_prompt = f"""
+{date_context}
+
+COMPLETE DATASET SUMMARY:
+{comprehensive_summary}
+
+QUESTION: {user_question}
+
+TARGETED DATA SAMPLE (for reference):
+{targeted_sample}
+
+Please analyze based on the complete dataset summary above. The sample is just for reference - your analysis should use the full dataset metrics provided in the summary.
+"""
+
+        # Get response from Claude
+        response = client.messages.create(
+            model="claude-3-5-sonnet-20241022",
+            system=system_prompt,
+            max_tokens=2500,
+            messages=[
+                {"role": "user", "content": user_prompt}
+            ]
+        )
+        
+        return response.content[0].text, None
+    
+    except Exception as e:
+        return None, str(e)
+
 def get_data_summary(df):
-    """Get a summary of the dataset for Claude context"""
+    """Get a basic summary of the dataset for sidebar display"""
     summary = {
         'total_rows': len(df),
         'date_range': {
@@ -181,150 +441,6 @@ def get_data_summary(df):
     
     return summary
 
-def analyze_data_with_claude(df, user_question):
-    """Analyze data using Claude API"""
-    try:
-        # Initialize Claude API
-        client = Anthropic(api_key=st.secrets["anthropic_api_key"])
-        
-        # Get data summary
-        summary = get_data_summary(df)
-        
-        # Get the most recent data by date (not just last 10 rows)
-        if 'SALES_LINE_CREATION_DATE' in df.columns:
-            # Sort by date and get the most recent 10 records
-            df_sorted = df.sort_values('SALES_LINE_CREATION_DATE', ascending=False)
-            recent_data = df_sorted.head(10).to_string(index=False)
-            
-            # Get actual date range for validation
-            latest_date = df['SALES_LINE_CREATION_DATE'].max()
-            earliest_date = df['SALES_LINE_CREATION_DATE'].min()
-            
-            date_range_info = f"""
-ACTUAL DATA DATE RANGE:
-- Earliest date in dataset: {earliest_date.strftime('%Y-%m-%d') if pd.notna(earliest_date) else 'Unknown'}
-- Latest date in dataset: {latest_date.strftime('%Y-%m-%d') if pd.notna(latest_date) else 'Unknown'}
-- Total date span: {(latest_date - earliest_date).days if pd.notna(latest_date) and pd.notna(earliest_date) else 'Unknown'} days
-"""
-        else:
-            recent_data = df.tail(10).to_string(index=False)
-            date_range_info = "Date range information not available"
-        
-        # Generate current date context
-        dates = get_date_contexts()
-        
-        date_context = f"""
-CURRENT DATE CONTEXT (Auto-generated):
-- Today: {dates['today_formatted']} ({dates['today']})
-- Yesterday: {dates['yesterday_formatted']} ({dates['yesterday']})
-- Last workday: {dates['last_workday_formatted']} ({dates['last_workday']})
-- Last week (same day): {dates['last_week_formatted']} ({dates['last_week']})
-- Last month (same day): {dates['last_month_formatted']} ({dates['last_month']})
-- This week started: {dates['week_start_formatted']} ({dates['week_start']})
-- This month started: {dates['month_start_formatted']} ({dates['month_start']})
-
-{date_range_info}
-
-WORKWEEK DEFINITION:
-- Workdays: Sunday, Monday, Tuesday, Wednesday, Thursday
-- Weekends: Friday, Saturday
-
-DATE INTERPRETATION RULES:
-- "Yesterday" = {dates['yesterday']}
-- "Today" = {dates['today']}
-- "Last workday" = {dates['last_workday']} (most recent workday)
-- "This week" = from {dates['week_start']} to today
-- "Last week" = use {dates['last_week']} as reference
-- "This month" = from {dates['month_start']} to today
-- "Last month" = use {dates['last_month']} as reference
-
-IMPORTANT: If the requested date (like "yesterday") is not available in the dataset, 
-analyze the most recent date available and clearly state what date you're analyzing.
-
-RESPONSE GUIDELINES:
-- Provide direct, conversational business answers
-- Never show SQL queries or technical details
-- Use the exact dates provided above for filtering data
-- Focus on actionable business insights
-- If data for requested date isn't available, use the most recent date and explain
-"""
-        
-        # Create system prompt with comprehensive context
-        system_prompt = f"""You are a data analyst for RTE/Raqtan, a company that uses Microsoft Dynamics 365 for sales data.
-
-DATA CONTEXT:
-- Total records: {summary['total_rows']}
-- Date range: {summary['date_range']['start']} to {summary['date_range']['end']}
-- Unique customers: {summary['unique_customers']}
-- Total sales amount: {summary['total_sales_amount']:,.2f} SAR
-- Regions: {', '.join(summary['unique_regions'])}
-- Sales order statuses: {', '.join(summary['sales_order_statuses'])}
-
-COLUMN DESCRIPTIONS:
-- SALES_ID: Unique identifier for each sales line
-- CUSTOMER_NAME: Name of the customer
-- CUSTOMER_ACCOUNT: Customer account number
-- ITEM_ID: Product/service identifier
-- SALES_ORDER_STATUS: Status of the entire order (invoiced, Open, Delivered, cancelled)
-- SALES_LINE_STATUS: Status of the individual line item
-- LINE_AMOUNT: Net amount (unit price × quantity)
-- LINE_AMOUNT_AFTER_DISCOUNT: Final amount after discounts (USE THIS for financial calculations)
-- SALES_QUANTITY: Quantity sold
-- DISCOUNT_PERCENTAGE: Discount applied
-- SALES_LINE_CREATION_DATE: When the line item was created
-- SALES_ORDER_CREATION_DATE: When the entire order was created
-- CUSTOMER_GROUP: Sales person name (starts with region prefix: J-, R-, K-)
-- REGION: Geographic region (Jeddah, Khobar, Riyadh, Dubai, etc.)
-- IS_SISTER_COMPANY: YES = internal job, NO = external sale
-- Currency: Saudi Riyals (SAR)
-
-BUSINESS RULES:
-- Use LINE_AMOUNT_AFTER_DISCOUNT for all financial calculations
-- IS_SISTER_COMPANY = YES means internal transactions
-- Sales order data is for the whole order, sales line data is item-level
-- This table is at the sales line level
-- Customer groups starting with J- are from Jeddah, R- from Riyadh, K- from Khobar
-- Spherey is an after-sales service company under Raqtan
-
-ANALYSIS INSTRUCTIONS:
-1. Always show your calculation logic
-2. Provide specific numbers and percentages
-3. Include relevant context and insights
-4. If analyzing time periods, be specific about dates
-5. Consider business context in your analysis
-6. Format large numbers with commas for readability
-7. If the requested date range isn't available, use the most recent data available and explain
-
-When answering questions about "yesterday" or "last quarter", use the actual data available, not theoretical dates."""
-
-        # Create user prompt with question and sample data
-        user_prompt = f"""
-{date_context}
-
-QUESTION: {user_question}
-
-MOST RECENT DATA SAMPLE (sorted by date, most recent first):
-{recent_data}
-
-Please analyze the full dataset to answer this question. Show your reasoning and provide specific insights.
-If the exact date requested isn't available, use the most recent data and clearly explain what date range you're analyzing.
-"""
-
-        # Get response from Claude
-        response = client.messages.create(
-            model="claude-3-5-sonnet-20241022",
-            system=system_prompt,
-            max_tokens=2000,
-            messages=[
-                {"role": "user", "content": user_prompt}
-            ]
-        )
-        
-        return response.content[0].text, None
-    
-    except Exception as e:
-        return None, str(e)
-
 def main():
     """Main Streamlit application"""
     st.title("🏢 RTE/Raqtan Sales Data Analyzer")
@@ -356,10 +472,10 @@ def main():
                 st.metric("Unique Customers", unique_customers)
             
             # Show data freshness
-            if 'LAST_UPDATED_AT' in df.columns:
-                last_update = df['LAST_UPDATED_AT'].max()
-                if pd.notna(last_update):
-                    st.info(f"Last updated: {last_update.strftime('%Y-%m-%d %H:%M')}")
+            if 'SALES_LINE_CREATION_DATE' in df.columns:
+                latest_date = df['SALES_LINE_CREATION_DATE'].max()
+                if pd.notna(latest_date):
+                    st.info(f"Latest data: {latest_date.strftime('%Y-%m-%d')}")
     
     # Main interface
     col1, col2 = st.columns([2, 1])
@@ -411,21 +527,21 @@ def main():
                 st.metric("Internal Sales %", f"{internal_pct:.1f}%")
     
     # Analyze button
-    if st.button("🔍 Analyze", type="primary", use_container_width=True):
+    if st.button("🔍 Analyze Full Dataset", type="primary", use_container_width=True):
         if not user_question.strip():
             st.error("Please enter a question to analyze.")
         else:
-            with st.spinner("Analyzing data with Claude AI..."):
+            with st.spinner("Analyzing complete dataset with Claude AI..."):
                 answer, error = analyze_data_with_claude(df, user_question)
                 
                 if error:
                     st.error(f"Error during analysis: {error}")
                 else:
-                    st.subheader("📈 Analysis Results")
+                    st.subheader("📈 Complete Dataset Analysis")
                     st.markdown(answer)
                     
-                    # Show timestamp
-                    st.caption(f"Analysis completed at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+                    # Show analysis details
+                    st.caption(f"Analysis based on {len(df):,} total records | Completed at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     
     # Footer
     st.markdown("---")
