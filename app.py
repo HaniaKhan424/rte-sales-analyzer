@@ -58,9 +58,9 @@ def preprocess_data(df):
         'LAST_UPDATED_AT'
     ]
     
-    for col in date_columns:
+for col in numeric_columns:
     if col in df.columns:
-        df[col] = pd.to_datetime(df[col].astype(str), errors='coerce')
+        df[col] = pd.to_numeric(df[col].astype(str), errors='coerce')
     
    # Convert numeric columns
 numeric_columns = ['LINE_AMOUNT', 'LINE_AMOUNT_AFTER_DISCOUNT', 'SALES_QUANTITY', 'DISCOUNT_PERCENTAGE']
