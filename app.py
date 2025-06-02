@@ -36,9 +36,15 @@ def load_sales_data():
         spreadsheet = client.open_by_url(spreadsheet_url)
         worksheet = spreadsheet.worksheet("sales orderline")
         
-        # Get all data
-        data = worksheet.get_all_records()
-        df = pd.DataFrame(data)
+        # Get all data starting from row 2 (headers are in row 1)
+        data = worksheet.get_all_values()
+
+        # Use the first row as headers and the rest as data
+        headers = data[0]  # Row 1 contains headers
+        rows = data[1:]    # Row 2 onwards contains data
+
+        # Create DataFrame
+        df = pd.DataFrame(rows, columns=headers)
         
         # Preprocess the data
         df = preprocess_data(df)
