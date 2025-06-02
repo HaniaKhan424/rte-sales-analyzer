@@ -7,31 +7,28 @@ import os
 from datetime import datetime, timedelta
 import json
 
-# ADD THIS ENTIRE FUNCTION HERE (after imports, before anything else)
-from datetime import datetime, timedelta
-
 def get_date_contexts():
     """Generate all date contexts automatically based on current date"""
     
-# Get current date
+    # Get current date
     today = datetime.now()
     
-# Helper function to check if a date is a workday (Sunday=0 to Thursday=4)
+    # Helper function to check if a date is a workday (Sunday=0 to Thursday=4)
     def is_workday(date):
         return date.weekday() in [6, 0, 1, 2, 3]  # Sunday(6), Monday(0), Tuesday(1), Wednesday(2), Thursday(3)
     
-# Calculate yesterday
+    # Calculate yesterday
     yesterday = today - timedelta(days=1)
     
-# Calculate last workday (most recent workday before today)
+    # Calculate last workday (most recent workday before today)
     last_workday = today - timedelta(days=1)
     while not is_workday(last_workday):
         last_workday -= timedelta(days=1)
     
-# Calculate last week (same day previous week)
+    # Calculate last week (same day previous week)
     last_week = today - timedelta(weeks=1)
     
-# Calculate last month (same day previous month)
+    # Calculate last month (same day previous month)
     if today.month == 1:
         last_month = today.replace(year=today.year-1, month=12)
     else:
@@ -40,14 +37,14 @@ def get_date_contexts():
         except ValueError:
             last_month = today.replace(month=today.month-1, day=28)
     
-# Calculate this week start (last Sunday)
+    # Calculate this week start (last Sunday)
     days_since_sunday = (today.weekday() + 1) % 7
     week_start = today - timedelta(days=days_since_sunday)
     
-# Calculate this month start
+    # Calculate this month start
     month_start = today.replace(day=1)
     
-# Format all dates
+    # Format all dates
     date_formats = {
         'today': today.strftime("%Y-%m-%d"),
         'today_formatted': today.strftime("%B %d, %Y"),
@@ -196,6 +193,39 @@ def analyze_data_with_claude(df, user_question):
         # Get a sample of recent data (last 10 rows)
         recent_data = df.tail(10).to_string(index=False)
         
+        # Generate current date context
+        dates = get_date_contexts()
+        
+        date_context = f"""
+CURRENT DATE CONTEXT (Auto-generated):
+- Today: {dates['today_formatted']} ({dates['today']})
+- Yesterday: {dates['yesterday_formatted']} ({dates['yesterday']})
+- Last workday: {dates['last_workday_formatted']} ({dates['last_workday']})
+- Last week (same day): {dates['last_week_formatted']} ({dates['last_week']})
+- Last month (same day): {dates['last_month_formatted']} ({dates['last_month']})
+- This week started: {dates['week_start_formatted']} ({dates['week_start']})
+- This month started: {dates['month_start_formatted']} ({dates['month_start']})
+
+WORKWEEK DEFINITION:
+- Workdays: Sunday, Monday, Tuesday, Wednesday, Thursday
+- Weekends: Friday, Saturday
+
+DATE INTERPRETATION RULES:
+- "Yesterday" = {dates['yesterday']}
+- "Today" = {dates['today']}
+- "Last workday" = {dates['last_workday']} (most recent workday)
+- "This week" = from {dates['week_start']} to today
+- "Last week" = use {dates['last_week']} as reference
+- "This month" = from {dates['month_start']} to today
+- "Last month" = use {dates['last_month']} as reference
+
+RESPONSE GUIDELINES:
+- Provide direct, conversational business answers
+- Never show SQL queries or technical details
+- Use the exact dates provided above for filtering data
+- Focus on actionable business insights
+"""
+        
         # Create system prompt with comprehensive context
         system_prompt = f"""You are a data analyst for RTE/Raqtan, a company that uses Microsoft Dynamics 365 for sales data.
 
@@ -243,41 +273,9 @@ ANALYSIS INSTRUCTIONS:
 
 When answering questions about "yesterday" or "last quarter", calculate based on the most recent data available."""
 
-# Generate current date context
-dates = get_date_contexts()
-
-date_context = f"""
-CURRENT DATE CONTEXT (Auto-generated):
-- Today: {dates['today_formatted']} ({dates['today']})
-- Yesterday: {dates['yesterday_formatted']} ({dates['yesterday']})
-- Last workday: {dates['last_workday_formatted']} ({dates['last_workday']})
-- Last week (same day): {dates['last_week_formatted']} ({dates['last_week']})
-- Last month (same day): {dates['last_month_formatted']} ({dates['last_month']})
-- This week started: {dates['week_start_formatted']} ({dates['week_start']})
-- This month started: {dates['month_start_formatted']} ({dates['month_start']})
-
-WORKWEEK DEFINITION:
-- Workdays: Sunday, Monday, Tuesday, Wednesday, Thursday
-- Weekends: Friday, Saturday
-
-DATE INTERPRETATION RULES:
-- "Yesterday" = {dates['yesterday']}
-- "Today" = {dates['today']}
-- "Last workday" = {dates['last_workday']} (most recent workday)
-- "This week" = from {dates['week_start']} to today
-- "Last week" = use {dates['last_week']} as reference
-- "This month" = from {dates['month_start']} to today
-- "Last month" = use {dates['last_month']} as reference
-
-RESPONSE GUIDELINES:
-- Provide direct, conversational business answers
-- Never show SQL queries or technical details
-- Use the exact dates provided above for filtering data
-- Focus on actionable business insights
-"""
         # Create user prompt with question and sample data
         user_prompt = f"""
-[date_context]
+{date_context}
 
 QUESTION: {user_question}
 
