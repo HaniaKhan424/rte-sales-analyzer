@@ -705,4 +705,4 @@ def main():
     st.markdown("*Built with Streamlit and Claude AI for RTE/Raqtan sales data analysis*")
 
 if __name__ == "__main__":
-    main()
+    main() 
