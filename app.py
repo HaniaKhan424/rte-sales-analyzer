@@ -1,5 +1,3 @@
-v5 used to work absolutely fine. but had to add CSV file when the API stopped working
-
 import gspread
 import pandas as pd
 import streamlit as st
