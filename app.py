@@ -7,6 +7,44 @@ import os
 from datetime import datetime, timedelta
 import json
 
+def check_password():
+    """Returns `True` if the user had the correct password."""
+    
+    def password_entered():
+        """Checks whether a password entered by the user is correct."""
+        # Get the password from secrets
+        correct_password = st.secrets.get("app_password", "default")
+        
+        if st.session_state["password"] == correct_password:
+            st.session_state["password_correct"] = True
+            del st.session_state["password"]  # Don't store password
+        else:
+            st.session_state["password_correct"] = False
+
+    if "password_correct" not in st.session_state:
+        # First run, show input for password
+        st.text_input(
+            "🔐 Enter Password to Access RTE Sales Analyzer", 
+            type="password", 
+            on_change=password_entered, 
+            key="password"
+        )
+        st.info("Please enter the password to access the sales data analyzer.")
+        return False
+    elif not st.session_state["password_correct"]:
+        # Password not correct, show input + error
+        st.text_input(
+            "🔐 Enter Password to Access RTE Sales Analyzer", 
+            type="password", 
+            on_change=password_entered, 
+            key="password"
+        )
+        st.error("😞 Password incorrect. Please try again.")
+        return False
+    else:
+        # Password correct
+        return True
+
 def get_date_contexts():
     """Generate all date contexts automatically based on current date"""
     
@@ -512,57 +550,24 @@ Please analyze based on the complete dataset summary above. Work with the availa
     except Exception as e:
         return None, str(e)
 
-def get_data_summary(df):
-    """Get a basic summary of the dataset for sidebar display with safety checks"""
-    summary = {
-        'total_rows': len(df),
-        'date_range': {'start': 'Unknown', 'end': 'Unknown'},
-        'unique_customers': 0,
-        'unique_regions': [],
-        'sales_order_statuses': [],
-        'total_sales_amount': 0,
-        'customer_groups': []
-    }
-    
-    # Detect date column
-    date_column = detect_date_column(df)
-    
-    # Safely get date range
-    if date_column and date_column in df.columns:
-        try:
-            date_min = df[date_column].min()
-            date_max = df[date_column].max()
-            if pd.notna(date_min):
-                summary['date_range']['start'] = date_min.strftime('%Y-%m-%d')
-            if pd.notna(date_max):
-                summary['date_range']['end'] = date_max.strftime('%Y-%m-%d')
-        except:
-            pass
-    
-    # Safely get other metrics
-    if 'CUSTOMER_NAME' in df.columns:
-        summary['unique_customers'] = df['CUSTOMER_NAME'].nunique()
-    
-    if 'REGION' in df.columns:
-        summary['unique_regions'] = df['REGION'].unique().tolist()
-    
-    if 'SALES_ORDER_STATUS' in df.columns:
-        summary['sales_order_statuses'] = df['SALES_ORDER_STATUS'].unique().tolist()
-    
-    if 'LINE_AMOUNT_AFTER_DISCOUNT' in df.columns:
-        summary['total_sales_amount'] = df['LINE_AMOUNT_AFTER_DISCOUNT'].sum()
-    elif 'LINE_AMOUNT' in df.columns:
-        summary['total_sales_amount'] = df['LINE_AMOUNT'].sum()
-    
-    if 'CUSTOMER_GROUP' in df.columns:
-        summary['customer_groups'] = df['CUSTOMER_GROUP'].unique().tolist()[:10]
-    
-    return summary
-
 def main():
     """Main Streamlit application"""
+    
+    # Check password first - this will control access to the entire app
+    if not check_password():
+        return  # Don't show anything else if password is incorrect
+    
+    # Only show the main app if password is correct
     st.title("🏢 RTE/Raqtan Sales Data Analyzer")
     st.markdown("Ask questions about your sales data and get AI-powered insights from Claude.")
+    
+    # Add logout button in sidebar
+    with st.sidebar:
+        if st.button("🚪 Logout"):
+            # Clear the password session state to log out
+            for key in st.session_state.keys():
+                del st.session_state[key]
+            st.rerun()
     
     # Sidebar for data info
     with st.sidebar:
@@ -705,4 +710,4 @@ def main():
     st.markdown("*Built with Streamlit and Claude AI for RTE/Raqtan sales data analysis*")
 
 if __name__ == "__main__":
-    main() 
+    main()
