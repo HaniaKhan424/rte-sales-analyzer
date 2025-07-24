@@ -6,9 +6,67 @@ from google.oauth2.service_account import Credentials
 import os
 from datetime import datetime, timedelta
 import json
+import time
 
 def check_password():
     """Returns `True` if the user had the correct password."""
+    
+    # Check if user is already authenticated
+    if st.session_state.get("password_correct", False):
+        return True
+    
+    # Create a nice centered layout for the login
+    st.markdown("---")
+    
+    # Center the login form
+    col1, col2, col3 = st.columns([1, 2, 1])
+    
+    with col2:
+        st.markdown("### 🔐 RTE Sales Data Analyzer")
+        st.markdown("**Secure Access Required**")
+        
+        # Create a form for better password handling
+        with st.form("password_form"):
+            password_input = st.text_input(
+                "Enter Password:", 
+                type="password",
+                placeholder="Enter your password here...",
+                help="Contact your administrator if you don't have the password"
+            )
+            
+            # Add some spacing
+            st.markdown("")
+            
+            # Submit button
+            submit_button = st.form_submit_button(
+                "🚀 Access Analyzer", 
+                type="primary",
+                use_container_width=True
+            )
+            
+            # Handle form submission
+            if submit_button:
+                correct_password = st.secrets.get("app_password", "default")
+                
+                if password_input == correct_password:
+                    st.session_state["password_correct"] = True
+                    st.success("✅ Access granted! Loading your sales analyzer...")
+                    time.sleep(1)  # Brief pause for better UX
+                    st.rerun()
+                else:
+                    st.error("❌ Incorrect password. Please try again.")
+                    st.info("💡 Make sure you're entering the correct password and check for any extra spaces.")
+    
+    # Add some footer info
+    st.markdown("---")
+    st.markdown(
+        "<div style='text-align: center; color: gray;'>"
+        "<small>🏢 RTE/Raqtan Sales Data Analyzer • Secure AI-Powered Analytics</small>"
+        "</div>", 
+        unsafe_allow_html=True
+    )
+    
+    return False
     
     def password_entered():
         """Checks whether a password entered by the user is correct."""
