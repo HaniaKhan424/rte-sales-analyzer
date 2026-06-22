@@ -744,8 +744,7 @@ def main():
                     # Show helpful debugging information
                     st.subheader("🔧 Debug Information")
                     st.write("**Available columns:**")
-                    st.write(df.columns.tolist())
-                    
+                                    
                     date_column = detect_date_column(df)
                     if date_column:
                         st.write(f"**Detected date column:** {date_column}")
